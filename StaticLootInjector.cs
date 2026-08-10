@@ -168,7 +168,25 @@ internal sealed class StaticLootInjector
             if (!staticLoot.TryGetValue(containerTpl, out var details) || details == null)
                 continue;
 
-            var distribution = details.ItemDistribution?.ToList() ?? [];
+            // LocationLootGenerator.GetPossibleLootItemsForContainer reads
+            // ItemDistribution.RelativeProbability.Value with no null check, so an entry that
+            // has no weight throws the moment the container is rolled. Keep them out of any
+            // list this transformer emits.
+            var distribution = new List<ItemDistribution>();
+            var unweighted = new List<MongoId>();
+            foreach (var entry in details.ItemDistribution ?? [])
+            {
+                if (entry is null)
+                    continue;
+
+                if (entry.RelativeProbability is null)
+                {
+                    unweighted.Add(entry.Tpl);
+                    continue;
+                }
+
+                distribution.Add(entry);
+            }
 
             // A container's weights are relative, so the existing total is what fixes the value
             // of one unit of weight. Without it there is nothing to size the cards against.
@@ -197,12 +215,28 @@ internal sealed class StaticLootInjector
                 if (!present.Add(itemTpl))
                     continue;
 
+                // Set the weight explicitly and only queue the entry once it is known good, so
+                // this never contributes an item the loot generator would fall over reading.
+                var relativeProbability = (float)(addedMass * weight / weightSum);
+                if (!float.IsFinite(relativeProbability) || relativeProbability <= 0)
+                {
+                    _logger.Warning(
+                        $"[KrackKards] Not adding {itemTpl} to container {containerTpl}: " +
+                        $"computed relativeProbability {relativeProbability} is not usable");
+                    continue;
+                }
+
                 distribution.Add(new ItemDistribution
                 {
                     Tpl                 = itemTpl,
-                    RelativeProbability = (float)(addedMass * weight / weightSum)
+                    RelativeProbability = relativeProbability
                 });
             }
+
+            foreach (var tpl in unweighted)
+                _logger.Warning(
+                    $"[KrackKards] Dropped {tpl} from container {containerTpl}: it has no " +
+                    "relativeProbability, which the loot generator cannot read");
 
             staticLoot[containerTpl] = details with { ItemDistribution = distribution };
         }
