@@ -272,10 +272,21 @@ transformer against live data, which avoids the hardcoded per-map probability ta
 reference mod carries.
 
 `LocationLootGenerator.GetPossibleLootItemsForContainer` dereferences
-`item.RelativeProbability.Value` directly, so the field is always set, never left null. The same
-method drops anything in `ItemFilterService.IsLootableItemBlacklisted`, which reads
-`ItemConfig.LootableItemBlacklist` — a different list from the `RagfairConfig` blacklist this
-mod writes to, so blacklisting cards from the flea does not stop them spawning.
+`item.RelativeProbability.Value` directly, with no null check, so an entry without a weight
+throws the moment its container is rolled. The transformer therefore sets the weight explicitly
+on every entry it queues, skips its own entry with a warning if the computed value is not finite
+and positive, and drops any pre-existing unweighted entry from the containers it rebuilds. The
+shipped location data has no such entries — all 10956 across the 12 maps carry a weight.
+
+The same method drops anything in `ItemFilterService.IsLootableItemBlacklisted`. That cache is
+built once in the `ItemFilterService` constructor from `ItemConfig.LootableItemBlacklist`
+(`SPT_Data/configs/item.json`), and the only other way in is
+`AddItemToLootableBlacklistCache`, which has no callers anywhere in the server. It is a
+different list from the `RagfairConfig` blacklist this mod writes to: that one is read only by
+`RagfairServerHelper` for flea offer eligibility and by
+`PostDbLoadService.SetAllDbItemsAsSellableOnFlea`, neither of which touches loot. Blacklisting
+cards from the flea therefore does not stop them spawning, and measured against a running
+server, 0 of 249 KrackKards tpls are on the lootable blacklist.
 
 ### Differences from the reference
 
@@ -299,10 +310,20 @@ that:
 match the startup log exactly.
 
 Because the injection is lazy, nothing is written to a map until a raid loads it. Forcing
-`StaticLoot.Value` on two maps during development confirmed the transformer runs and produced a
-measured card share of 1.000% of container entries on both `bigmap` (26 containers) and
-`sandbox` (25 containers) — exactly `BaseGroupChance × card_weight_multiplier` = `0.02 × 0.5`,
-confirming the weight solve lands where intended against real container data.
+`StaticLoot.Value` on two maps against a running 4.1.2 server confirmed the transformer runs,
+and that the resulting distributions carry cards at a 1.000% weight share — exactly
+`BaseGroupChance × card_weight_multiplier` = `0.02 × 0.5`.
+
+Drawing from those distributions with SPT's own `ProbabilityObjectArray.Draw`, which is what
+the loot generator uses and which normalises its cumulative weights to 1:
+
+| Map | Container | Entries | Cards | Weight share | 200000 draws | Observed |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bigmap` | `578f87b7245977356274f2cd` (drawer) | 124 | 6 | 1.000% | 1946 cards | **0.973%** |
+| `sandbox` | `6582e6c6edf14c4c6023adf2` (dead scav, laborant) | 7 | 6 | 1.000% | 1918 cards | **0.959%** |
+
+Both are within normal sampling error of 1% (σ ≈ 44 draws at this sample size, so −1.2σ and
+−1.8σ). Cards were present in 26 containers on `bigmap` and 25 on `sandbox`.
 
 ---
 
@@ -317,9 +338,10 @@ needs a client connection. Specifically unconfirmed:
 - Ragman assort showing the items at the right loyalty levels
 - flea blacklist actually hiding them
 - bundles resolving client-side
-- cards actually being **found** in a container in a live raid. The transformer was proven to
-  run and produce the intended 1% share, but the loot generator drawing a card from that
-  distribution in-raid was not observed.
+- a card being physically **picked up** out of a container in a live raid. The transformer runs,
+  the distribution carries cards at the intended share, nothing filters them at draw time, and
+  SPT's own weighted draw returns them at the expected rate — but the last step, a player
+  opening a container in a raid and seeing a card, still needs a game client.
 
 ---
 
