@@ -27,6 +27,7 @@ public class KrackKardsMod(
     ModHelper modHelper,
     TemplateTable templateTable,
     TradersTable tradersTable,
+    LocationTable locationTable,
     RagfairConfig ragfairConfig,
     InventoryConfig inventoryConfig,
     CustomItemService customItemService
@@ -36,6 +37,9 @@ public class KrackKardsMod(
     private const string RoublesId = "5449016a4bdc2d6f028b456f";
 
     private int _itemsRegistered;
+
+    /// <summary>Every item that made it into the database, for static loot to draw on.</summary>
+    private readonly List<KrackItemConfig> _registered = [];
 
     private static readonly JsonSerializerOptions JsonOpts = new()
     {
@@ -78,15 +82,54 @@ public class KrackKardsMod(
             ProcessCardCase(casePath, ragman, allCardIds);
 
         logger.Info($"[KrackKards] Registered {_itemsRegistered} items ({allCardIds.Count} cards)");
+
+        InjectStaticLoot(pathToMod);
+
         logger.Success("[KrackKards] Gotta find 'em all!");
         return Task.CompletedTask;
+    }
+
+    // ── Static loot ──────────────────────────────────────────────────────────
+
+    /// <summary>Add the registered items to the containers their configs already name.</summary>
+    private void InjectStaticLoot(string pathToMod)
+    {
+        var configPath = Path.Combine(pathToMod, "config", "static_loot.json");
+        StaticLootConfig staticLootConfig;
+
+        if (File.Exists(configPath))
+        {
+            // Defaults are only a safe stand-in for a file that was never written. A file that
+            // exists but cannot be read may well have said enable_container_spawns = false, and
+            // defaults would silently turn spawns back on, so do nothing instead.
+            var loaded = Load<StaticLootConfig>(configPath);
+            if (loaded == null)
+            {
+                logger.Error("[KrackKards] config/static_loot.json could not be read, static loot spawns are off for this run");
+                return;
+            }
+            staticLootConfig = loaded;
+        }
+        else
+        {
+            logger.Warning("[KrackKards] config/static_loot.json is missing, using defaults");
+            staticLootConfig = new StaticLootConfig();
+        }
+
+        var report = new StaticLootInjector(logger, locationTable, staticLootConfig).Inject(_registered);
+        if (report.Entries == 0)
+            return;
+
+        logger.Info(
+            $"[KrackKards] Static loot: {report.Entries} entries queued into {report.Containers} " +
+            $"containers ({report.ContainerTypes} types) across {report.Maps} maps, applied when a map loads");
     }
 
     // ── Per-type processing ──────────────────────────────────────────────────
 
     private void ProcessCard(string file, Trader ragman, List<string> allCardIds)
     {
-        var cfg = Load(file);
+        var cfg = Load<KrackItemConfig>(file);
         if (cfg == null) return;
         if (!RegisterItem(cfg, ragman)) return;
         allCardIds.Add(cfg.Id);
@@ -94,7 +137,7 @@ public class KrackKardsMod(
 
     private void ProcessPack(string file, Trader ragman)
     {
-        var cfg = Load(file);
+        var cfg = Load<KrackItemConfig>(file);
         if (cfg == null) return;
         if (!RegisterItem(cfg, ragman)) return;
         RegisterLootBox(cfg);
@@ -102,7 +145,7 @@ public class KrackKardsMod(
 
     private void ProcessBinder(string file, Trader ragman)
     {
-        var cfg = Load(file);
+        var cfg = Load<KrackItemConfig>(file);
         if (cfg == null) return;
         if (!RegisterItem(cfg, ragman)) return;
         ApplySlotStructure(cfg);
@@ -110,7 +153,7 @@ public class KrackKardsMod(
 
     private void ProcessCardCase(string file, Trader ragman, List<string> allCardIds)
     {
-        var cfg = Load(file);
+        var cfg = Load<KrackItemConfig>(file);
         if (cfg == null) return;
         if (!RegisterItem(cfg, ragman)) return;
         BuildAllCardsSlot(cfg.Id, allCardIds);
@@ -122,7 +165,7 @@ public class KrackKardsMod(
     {
         // 4.0 generated an id when "id" was absent; 4.1 takes NewId verbatim, and MongoId's
         // constructor maps an empty string onto the all-zero id rather than rejecting it. Left
-        // alone that registers a template under the zero id.
+        // alone that registers a template under the zero id and carries it into static loot.
         if (!MongoId.IsValidMongoId(cfg.Id))
         {
             logger.Warning($"[KrackKards] Skipping {cfg.ItemName}: 'id' must be 24 hex characters");
@@ -168,6 +211,7 @@ public class KrackKardsMod(
         }
 
         _itemsRegistered++;
+        _registered.Add(cfg);
 
         // Apply properties not covered by OverrideProperties
         if (templateTable.Items.TryGetValue(new MongoId(cfg.Id), out var item) && item.Properties != null)
@@ -328,11 +372,11 @@ public class KrackKardsMod(
         return string.IsNullOrWhiteSpace(slug) ? cfg.Id : slug;
     }
 
-    private KrackItemConfig? Load(string path)
+    private T? Load<T>(string path) where T : class
     {
         try
         {
-            return JsonSerializer.Deserialize<KrackItemConfig>(File.ReadAllText(path), JsonOpts);
+            return JsonSerializer.Deserialize<T>(File.ReadAllText(path), JsonOpts);
         }
         catch (Exception ex)
         {

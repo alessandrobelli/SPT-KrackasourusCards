@@ -1,0 +1,84 @@
+{
+    // ─────────────────────────────────────────────────────────────────────────
+    // KrackKards - static loot spawns
+    //
+    // Cards are added to the containers each card's own config already names under
+    // "loot_locations". This file only decides whether that happens and how often;
+    // it cannot add a container a card does not already list.
+    //
+    // Items whose config says "lootable": false never spawn in containers. That is
+    // every card pack, every binder and the card case, so only the cards and the
+    // anime cases turn up in raid.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // Master switch. false leaves every container untouched, and cards stay
+    // buyable from Ragman only.
+    "enable_container_spawns": true,
+
+    // How often cards turn up, across every container and map.
+    //
+    // A container roll lands on a KrackKards item 2% of the time at multiplier 1,
+    // so the 0.5 shipped here means 1%: cards are a pleasant surprise rather than
+    // something in every other jacket.
+    //
+    //   0    off          0.5  shipped default (~1% of rolls)
+    //   1    ~2%          5    ~10%, cards get common
+    //
+    // The share is capped at 50% per container however high this goes.
+    "card_weight_multiplier": 0.5,
+
+    // Per-container-type multipliers. 1.0 leaves a container at the rate above,
+    // 0 switches that container type off for cards, 2 doubles it.
+    //
+    // Every container id below is one the card configs actually reference. The
+    // count is how many card entries name that container across all maps.
+    "container_multipliers": {
+        "5909d5ef86f77467974efbd8": 1.0,   // Weapon box, long          (84 entries)
+        "5909e4b686f7747f5b744fa4": 1.0,   // Dead scav                 (81 entries)
+        "5909d50c86f774659e6aaebe": 1.0,   // Toolbox                   (75 entries)
+        "5909d76c86f77471e53d2adf": 1.0,   // Weapon box, long large    (71 entries)
+        "578f8778245977358849a9b5": 1.0,   // Jacket                    (70 entries)
+        "5909d24f86f77466f56e6855": 1.0,   // Medbag SMU06              (68 entries)
+        "5909d4c186f7746ad34e805a": 1.0,   // Medcase                   (67 entries)
+        "59139c2186f77411564f8e42": 1.0,   // PC block                  (66 entries)
+        "5909d45286f77465a8136dc6": 1.0,   // Wooden ammo box           (65 entries)
+        "578f87ad245977356274f2cc": 1.0,   // Weapon crate              (64 entries)
+        "578f87b7245977356274f2cd": 1.0,   // Drawer                    (64 entries)
+        "578f8782245977354405a1e3": 1.0,   // Safe                      (64 entries)
+        "578f87a3245977356274f2cb": 1.0,   // Duffle bag                (63 entries)
+        "5909d36d86f774660f0bb900": 1.0,   // Grenade box               (56 entries)
+        "5d6fd45b86f774317075ed43": 1.0,   // Technical supply crate    (52 entries)
+        "5909d7cf86f77470ee57d75a": 1.0,   // Weapon box, square        (51 entries)
+        "5d6fe50986f77449d97f7463": 1.0,   // Medical supply crate      (50 entries)
+        "5909d89086f77472591234a0": 1.0,   // Weapon box, square large  (47 entries)
+        "5d6d2b5486f774785c2ba8ea": 1.0,   // Ground cache              (46 entries)
+        "578f879c24597735401e6bc6": 1.0,   // Cash register             (41 entries)
+        "5d6fd13186f77424ad2a8c69": 1.0,   // Ration supply crate       (38 entries)
+        "5c052cea86f7746b2101e8d8": 1.0,   // Plastic suitcase          (34 entries)
+        "5d6d2bb386f774785b07a77a": 1.0,   // Buried barrel cache       (29 entries)
+        "6582e6d7b14c3f72eb071420": 1.0,   // Dead PMC                  (15 entries)
+        "6582e6c6edf14c4c6023adf2": 1.0,   // Dead scav, laborant       (12 entries)
+        "5ad74cf586f774391278f6f0": 1.0,   // Cash register, large      (12 entries)
+        "6582e6bb0c3b9823fe6d1840": 1.0,   // Dead scav, flare gun       (9 entries)
+        "658420d8085fea07e674cdb6": 1.0,   // Dead civilian              (9 entries)
+        "5d07b91b86f7745a077a9432": 1.0,   // Common fund stash          (8 entries)
+        "5937ef2b86f77408a47244b3": 1.0,   // Jacket, yellow             (6 entries)
+        "59387ac686f77401442ddd61": 1.0,   // Jacket, Factory            (6 entries)
+        "64d11702dd0cd96ab82c3280": 1.0,   // Bank safe                  (4 entries)
+        "64d116f41a9c6143a956127d": 1.0,   // Bank cash register         (4 entries)
+        "5914944186f774189e5e76c2": 1.0    // Jacket, Customs            (3 entries)
+    },
+
+    // How each container's card budget splits across rarities. These are relative
+    // to one another, so a common card is worth about 33 ultimates here.
+    //
+    // A rarity missing from this list weighs 1.0, so emptying the object gives
+    // every card identical odds. Setting one to 0 keeps that rarity out of raid.
+    "rarity_weights": {
+        "common":   1.0,
+        "uncommon": 0.5,
+        "rare":     0.25,
+        "epic":     0.1,
+        "ultimate": 0.03
+    }
+}
