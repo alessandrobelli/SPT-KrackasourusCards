@@ -4,3 +4,8 @@
 
 /Properties
 /.vs
+
+# Build output. obj/ was previously tracked and its stale net9.0 artifacts break
+# a net10.0 rebuild, so it is ignored and removed from the index.
+/obj/
+/bin/
